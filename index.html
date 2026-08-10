@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a237e">
+<title>Biblia AI</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="/nvidia_config.js"></script>
+<script>
+  if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(e){console.warn("sw",e);});});}
+</script>
+<style>
+  :root{--bg:#0f1226;--card:#1a1f3d;--txt:#eef;--muted:#9aa3c7;--accent:#5c6bc0;--border:#2a3160;--ok:#4caf50}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6;padding-bottom:70px}
+  header{position:sticky;top:0;background:linear-gradient(135deg,#1a237e,#3949ab);padding:12px 14px;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+  header h1{font-size:1.1rem;display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .me{font-size:.75rem;color:#dfe;background:rgba(255,255,255,.12);padding:4px 8px;border-radius:8px}
+  .tabs{display:flex;gap:4px;margin-top:8px;overflow-x:auto}
+  .tab{flex:0 0 auto;text-align:center;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.08);font-size:.78rem;cursor:pointer;white-space:nowrap}
+  .tab.active{background:var(--accent);font-weight:600}
+  .wrap{padding:14px;max-width:900px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+  input,select,textarea{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--border);background:#11152e;color:var(--txt);font-size:1rem;margin-bottom:10px;font-family:inherit}
+  button{width:100%;padding:11px;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:1rem;font-weight:600;cursor:pointer}
+  button:active{transform:scale(.98)}
+  .verse{padding:9px 0;border-bottom:1px solid var(--border);display:flex;gap:10px}
+  .verse:last-child{border-bottom:none}
+  .vnum{color:var(--accent);font-weight:700;min-width:26px;text-align:right;flex-shrink:0}
+  .vtext{flex:1}
+  .breadcrumb{color:var(--muted);font-size:.85rem;margin-bottom:10px}
+  .result{padding:9px 0;border-bottom:1px solid var(--border)}
+  .result .ref{color:var(--accent);font-weight:600;font-size:.85rem}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .empty{text-align:center;color:var(--muted);padding:28px}
+  .stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+  .badge{display:inline-block;background:rgba(92,107,192,.2);color:var(--accent);padding:3px 9px;border-radius:20px;font-size:.75rem;margin:3px}
+  .pill-read{background:rgba(76,175,80,.18);color:var(--ok)}
+  .stat-row{display:flex;gap:8px;flex-wrap:wrap}
+  .stat-row .stat{flex:1;min-width:90px}
+  .progress-bar{height:14px;background:#11152e;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:6px 0 4px}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));border-radius:10px;transition:width .4s}
+  .book-bars{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+  .book-bar{display:flex;align-items:center;gap:8px;font-size:.78rem}
+  .bb-name{width:120px;flex-shrink:0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bb-track{flex:1;height:9px;background:#11152e;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .bb-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));border-radius:8px}
+  .bb-num{width:54px;text-align:right;color:var(--muted);flex-shrink:0}
+  .alert-warn{margin-top:10px;background:rgba(255,193,7,.14);border:1px solid #ffc10755;color:#ffd54f;padding:9px 12px;border-radius:10px;font-size:.85rem}
+  .post{background:#11152e;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
+  .post .who{font-weight:600;font-size:.8rem;color:var(--accent)}
+  .post .when{color:var(--muted);font-size:.7rem}
+  .course{background:#11152e;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px}
+  .course h3{font-size:.95rem;margin-bottom:4px}
+  .course .verses{color:var(--accent);font-size:.8rem}
+  .hidden{display:none!important}
+  .chatlog{display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;margin-bottom:12px}
+  .bubble{max-width:88%;padding:10px 13px;border-radius:14px;font-size:.95rem;white-space:pre-wrap;word-wrap:break-word;position:relative}
+  .bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .bubble.ai{align-self:flex-start;background:#11152e;border:1px solid var(--border);border-bottom-left-radius:4px}
+  .bubble .who{font-size:.7rem;color:var(--muted);margin-bottom:3px}
+  .note-btn{margin-top:6px;font-size:.7rem;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.08);color:var(--txt);border:1px solid var(--border);cursor:pointer;width:auto;align-self:flex-start}
+  /* --- Formato de texto tipo markdown dentro de burbujas IA y notas --- */
+  .bubble.ai .md-body h4,.note-md h4{font-size:.98rem;color:var(--accent);margin:12px 0 6px 0;font-weight:700;line-height:1.4}
+  .bubble.ai .md-body h4:first-child,.note-md h4:first-child{margin-top:0}
+  .bubble.ai .md-body p,.note-md p{margin:6px 0;line-height:1.65}
+  .bubble.ai .md-body strong,.note-md strong{color:#fff;font-weight:700}
+  .bubble.ai .md-body em,.note-md em{color:var(--accent);font-style:italic}
+  .bubble.ai .md-body ul,.bubble.ai .md-body ol,.note-md ul,.note-md ol{margin:6px 0 6px 22px;padding:0}
+  .bubble.ai .md-body li,.note-md li{margin:4px 0}
+  .bubble.ai .md-body .vref,.note-md .vref{color:var(--accent);font-weight:600;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+  .bubble.ai .md-body blockquote,.note-md blockquote{font-style:italic;color:var(--muted);margin:8px 0;padding:4px 12px;border-left:3px solid var(--accent);background:rgba(92,107,192,.06);border-radius:0 8px 8px 0}
+  .summary-box{background:rgba(92,107,192,.1);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:10px 0}
+  .summary-box .summary-title{font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .note-md{font-size:.92rem;line-height:1.6}
+  .note-md .note-title{font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:6px}
+  .note-md .note-question{font-size:.82rem;color:var(--muted);background:rgba(92,107,192,.08);border-left:3px solid var(--accent);padding:6px 10px;border-radius:0 8px 8px 0;margin-bottom:8px;font-style:italic}
+  /* --- Modal popup de versiculo --- */
+  .verse-modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(3px)}
+  .verse-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .verse-modal .vm-header{position:sticky;top:0;background:linear-gradient(135deg,#1a237e,#3949ab);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:16px 16px 0 0}
+  .verse-modal .vm-title{font-size:1rem;font-weight:700;color:#fff}
+  .verse-modal .vm-close{background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .verse-modal .vm-close:hover{background:rgba(255,255,255,.3)}
+  .verse-modal .vm-body{padding:16px 18px}
+  .verse-modal .vm-verse{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .verse-modal .vm-verse:last-child{border-bottom:none}
+  .verse-modal .vm-num{color:var(--accent);font-weight:700;min-width:24px;text-align:right;flex-shrink:0}
+  .verse-modal .vm-text{flex:1;line-height:1.65}
+  .verse-modal .vm-loading,.verse-modal .vm-error{padding:20px;text-align:center;color:var(--muted)}
+  @media(min-width:700px){header h1{font-size:1.3rem}.wrap{padding:20px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Biblia AI <span class="me" id="meBox">Invitado</span></h1>
+  <div class="tabs">
+    <div class="tab active" data-tab="read">Leer</div>
+    <div class="tab" data-tab="audio">Audio</div>
+    <div class="tab" data-tab="search">Buscar</div>
+    <div class="tab" data-tab="progress">Progreso</div>
+    <div class="tab" data-tab="chat">Chat</div>
+    <div class="tab" data-tab="notes">Notas</div>
+    <div class="tab" data-tab="me">Perfil</div>
+    <div class="tab" data-tab="admin">Admin</div>
+  </div>
+</header>
+<div class="wrap">
+  <div id="tab-read" class="tabpane">
+    <div class="card"><div class="row">
+      <select id="selBook" onchange="onBookChange()"></select>
+      <select id="selChapter" onchange="loadChapter()"></select>
+    </div>
+    <button onclick="markCurrentRead()">Marca capitulo leido (+5 pts)</button></div>
+    <div class="card" id="reader"><div class="empty">Cargando</div></div>
+  </div>
+  <div id="tab-search" class="tabpane hidden">
+    <div class="card"><input id="searchInput" placeholder="Buscar (ej: amor, salvacion)" oninput="debounceSearch()">
+      <button onclick="doSearch()">Buscar</button></div>
+    <div class="card" id="searchResults"><div class="empty">Escribe para buscar.</div></div>
+  </div>
+  <div id="tab-progress" class="tabpane hidden">
+    <div class="card" id="progressBox"><div class="empty">Inicia sesion para ver tu progreso.</div></div>
+  </div>
+  <div id="tab-chat" class="tabpane hidden">
+    <div class="card">
+      <div class="chatlog" id="chatlog"><div class="empty">Preguntale a la IA sobre la Biblia.</div></div>
+      <textarea id="chatInput" placeholder="Tu pregunta biblica" rows="3"></textarea>
+      <button onclick="chatSend()">Enviar</button>
+    </div>
+  </div>
+  <div id="tab-me" class="tabpane hidden">
+    <div class="card" id="authBox"></div>
+    <div class="card hidden" id="profileBox"></div>
+    <div class="card hidden" id="notesBox"><h3>Mis notas</h3><div id="notesList" class="empty">No hay notas todavia.</div></div>
+  </div>
+  <div id="tab-notes" class="tabpane hidden">
+    <div class="card" id="notesBoxAlt"><h3>Mis notas</h3><div id="notesListAlt" class="empty">No hay notas todavia.</div></div>
+  </div>
+  <div id="tab-audio" class="tabpane hidden">
+    <div class="card"><div class="row">
+      <select id="selBookAudio" onchange="onBookChangeAudio()"></select>
+    </div>
+    <div class="row" style="align-items:flex-start;margin-bottom:10px">
+      <label style="font-size:.8rem;color:var(--muted);margin-top:6px">Capitulos</label>
+      <div style="flex:1">
+        <div style="margin-bottom:6px">
+          <button type="button" onclick="selectAllChapters(true)" style="font-size:.75rem;padding:3px 8px;margin-right:6px">Seleccionar todo</button>
+          <button type="button" onclick="selectAllChapters(false)" style="font-size:.75rem;padding:3px 8px">Ninguno</button>
+        </div>
+        <div id="selChaptersAudio" class="chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+    <div class="row" style="align-items:center;margin-bottom:10px">
+      <label style="font-size:.8rem;color:var(--muted)">Velocidad</label>
+      <select id="ttsRate" style="margin-bottom:0">
+        <option value="0.8">Lenta</option>
+        <option value="1" selected>Normal</option>
+        <option value="1.25">Rapida</option>
+      </select>
+    </div>
+    <div class="row" style="align-items:center;margin-bottom:10px">
+      <label style="font-size:.8rem;color:var(--muted)">Voz</label>
+      <select id="ttsVoice" style="margin-bottom:0">
+        <option value="">Masculina gruesa (por defecto)</option>
+      </select>
+    </div>
+    <button id="btnPlayPause" onclick="toggleAudio()">▶ Escuchar seleccion</button>
+    <button onclick="stopAudio()" style="background:rgba(255,255,255,.08);margin-top:8px">■ Detener</button>
+    <div class="breadcrumb" id="audioStatus" style="margin-top:10px">Elige un libro y uno o varios capitulos, luego pulsa Escuchar.</div>
+    </div>
+  </div>
+  <div id="tab-admin" class="tabpane hidden">
+    <div class="card"><input id="adminKey" placeholder="Clave de admin" type="password">
+      <div id="adminStats" class="empty">Estadisticas aqui.</div></div>
+  </div>
+</div>
+<script>
+const API="";
+let USER=null, allBooks=[];
+const $=function(id){return document.getElementById(id);};
+function saveUser(u){USER=u;localStorage.setItem("biblia_user",u?JSON.stringify(u):"");}
+function loadUser(){try{return JSON.parse(localStorage.getItem("biblia_user")||"null");}catch(e){return null;}}
+function showTab(t){
+  document.querySelectorAll(".tab").forEach(function(e){e.classList.toggle("active",e.dataset.tab===t);});
+  document.querySelectorAll(".tabpane").forEach(function(e){e.classList.add("hidden");});
+  $("tab-"+t).classList.remove("hidden");
+  if(t==="progress")renderProgress();
+  if(t==="me")renderMe(); if(t==="admin")renderAdmin();
+  if(t==="notes")renderNotesListAlt();
+  if(t==="audio")initAudioTab();
+}
+document.querySelectorAll(".tab").forEach(function(e){e.onclick=function(){showTab(e.dataset.tab);};});
+async function api(path,opt){const r=await fetch(API+path,opt||{});if(!r.ok)throw await r.json().catch(function(){return {detail:r.status};});return r.json();}
+ function errMsg(e){return ((e&&e.detail)||(e&&e.message)||String(e)||"Error");}
+function renderMarkdown(text){
+  // Escapar HTML
+  var html=text.replace(/&/g,"&").replace(/</g,"<").replace(/>/g,">");
+  var lines=html.split("\n");
+  var out=[];
+  var inList=false;
+  var para=[];
+  function flushPara(){
+    if(para.length){
+      out.push("<p>"+para.join(" ")+"</p>");
+      para=[];
+    }
+  }
+  function closeList(){if(inList){out.push("</ul>");inList=false;}}
+  function inline(s){
+    // Referencias biblicas: Mateo 27:52-53, Apocalipsis 20:11-15, 1 Cor 5:10
+      s=s.replace(/(\b(?:[1-3]\s)?[A-Za-záéíóúñÁÉÍÓÚÑ]+\s(?:\d+:\d+(?:-\d+)?))\b/g,function(m){
+        // parsear libro cap:vers-fin
+        var parts=m.match(/^(.*?)\s(\d+):(\d+)(?:-(\d+))?$/);
+        if(!parts) return '<span class="vref">'+m+'</span>';
+        var book=parts[1].trim();
+        var chap=parts[2];
+        var start=parts[3];
+        var end=parts[4]||start;
+        return '<span class="vref" data-book="'+book.replace(/"/g,'')+'" data-chapter="'+chap+'" data-start="'+start+'" data-end="'+end+'" onclick="showVersePopupFromEl(this)" title="Ver cita completa">'+m+'</span>';
+      });
+      // **negritas**
+      s=s.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+      // *italic* — simple: un * seguido de texto sin * seguido de *
+      s=s.replace(/\*(?!\*)([^*]+?)\*(?!\*)/g,"<em>$1</em>");
+      return s;
+    }
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    var trimmed=line.trim();
+    // Encabezados ### o ##
+    var hMatch=trimmed.match(/^#{3,4}\s+(.+)$/);
+    if(hMatch){closeList();flushPara();out.push("<h4>"+inline(hMatch[1])+"</h4>");continue;}
+    // Blockquote >
+    if(trimmed.startsWith(">")){closeList();flushPara();out.push("<blockquote>"+inline(trimmed.replace(/^>\s?/,""))+"</blockquote>");continue;}
+    // Lista - o *
+    var liMatch=trimmed.match(/^[-*]\s+(.+)$/);
+    if(liMatch){
+      flushPara();
+      if(!inList){out.push("<ul>");inList=true;}
+      out.push("<li>"+inline(liMatch[1])+"</li>");
+      continue;
+    }
+    // Linea vacia — cerrar lista/parrafo
+    if(trimmed===""){closeList();flushPara();continue;}
+    // Linea normal — acumular en parrafo
+    para.push(inline(trimmed));
+  }
+  closeList();flushPara();
+  var raw=text.replace(/\x22/g,'');
+  return '<div class="md-body" data-raw="'+raw+'">'+out.join("")+'</div>';
+}
+function wrapShortAnswer(html){
+  // Encontrar el primer parrafo que contiene "respuesta corta" o "Respuesta:" y envolverlo en summary-box
+  // Buscar el patron "respuesta corta es:" o "Respuesta:" dentro de un <p>
+  var marker=html.search(/respuesta corta es[:"]/i);
+  if(marker<0) marker=html.search(/respuesta[:"]/i);
+  if(marker<0) return html;
+  // Encontrar el <p> que contiene el marker
+  var pStart=html.lastIndexOf("<p>",marker);
+  var pEnd=html.indexOf("</p>",marker);
+  if(pStart<0||pEnd<0) return html;
+  pEnd+=4;
+  var before=html.slice(0,pStart);
+  var para=html.slice(pStart,pEnd);
+  var after=html.slice(pEnd);
+  return before+'<div class="summary-box"><div class="summary-title">✓ Respuesta</div>'+para+"</div>"+after;
+}
+function showVersePopupFromEl(el){
+  showVersePopup(el.getAttribute("data-book"), el.getAttribute("data-chapter"), el.getAttribute("data-start"), el.getAttribute("data-end"));
+}
+function showVersePopup(book, chapter, start, end){
+  end = end || start;
+  // Crear overlay
+  var overlay=document.createElement("div");
+  overlay.className="verse-modal-overlay";
+  overlay.innerHTML='<div class="verse-modal"><div class="vm-header"><div class="vm-title">'+book+' '+chapter+':'+start+(end!=start?'-'+end:'')+'</div><button class="vm-close" onclick="closeVersePopup()">×</button></div><div class="vm-body"><div class="vm-loading">Cargando cita...</div></div></div>';
+  document.body.appendChild(overlay);
+  // Cerrar al hacer click fuera del modal
+  overlay.addEventListener("click",function(e){ if(e.target===overlay) closeVersePopup(); });
+  // Cerrar con ESC
+  document.addEventListener("keydown",escCloseVerse);
+  // Cargar versiculos
+  api("/api/verse?book="+encodeURIComponent(book)+"&chapter="+chapter+"&start="+start+"&end="+end)
+    .then(function(d){
+      var html=d.verses.map(function(v){
+        return '<div class="vm-verse"><span class="vm-num">'+v.verse+'</span><span class="vm-text">'+v.text.replace(/</g,"<")+'</span></div>';
+      }).join("");
+      overlay.querySelector(".vm-body").innerHTML=html;
+    })
+    .catch(function(e){
+      overlay.querySelector(".vm-body").innerHTML='<div class="vm-error">No se pudo cargar la cita.</div>';
+    });
+}
+function escCloseVerse(e){ if(e.key==="Escape") closeVersePopup(); }
+function closeVersePopup(){
+  var overlay=document.querySelector(".verse-modal-overlay");
+  if(overlay) overlay.remove();
+  document.removeEventListener("keydown",escCloseVerse);
+}
+async function init(){
+  USER=loadUser(); refreshMe();
+  const d=await api("/api/books"); allBooks=d.books;
+  $("selBook").innerHTML="<option value=\"\">Libro</option>"+allBooks.map(function(b){return "<option>"+b+"</option>";}).join("");
+  if(allBooks.length){$("selBook").value=allBooks[0];onBookChange();}
+  renderCourses();
+}
+function refreshMe(){$("meBox").textContent=USER?USER.name:"Invitado";}
+async function onBookChange(){
+  const book=$("selBook").value; if(!book)return;
+  const d=await api("/api/books/"+encodeURIComponent(book)+"/chapters");
+  $("selChapter").innerHTML=d.chapters.map(function(c){return "<option value=\""+c+"\">Cap "+c+"</option>";}).join("");
+  if(d.chapters.length){$("selChapter").value=d.chapters[0];loadChapter();}
+}
+async function loadChapter(){
+  const book=$("selBook").value,chap=$("selChapter").value; if(!book||!chap)return;
+  const d=await api("/api/books/"+encodeURIComponent(book)+"/"+chap);
+  $("reader").innerHTML="<div class=\"breadcrumb\">"+book+" "+chap+"</div>"+
+    d.verses.map(function(v){return "<div class=\"verse\"><span class=\"vnum\">"+v.verse+"</span><span class=\"vtext\">"+v.text+"</span></div>";}).join("");
+}
+/* === Pestaña Audio: leer capitulo con Web Speech API (gratis, local) === */
+let audioBook=null, audioChapter=null, audioVerses=[], audioIdx=0, audioPlaying=false, audioUtter=null, audioVoice=null, audioQueue=[], audioQueuePos=0;
+async function initAudioTab(){
+  if(!$("selBookAudio").options.length){
+    $("selBookAudio").innerHTML="<option value=\"\">Libro</option>"+allBooks.map(function(b){return "<option>"+b+"</option>";}).join("");
+    if(allBooks.length){$("selBookAudio").value=allBooks[0];onBookChangeAudio();}
+  }
+  populateVoices();
+  if("speechSynthesis" in window){
+    window.speechSynthesis.onvoiceschanged=populateVoices;
+  }
+}
+async function onBookChangeAudio(){
+  const book=$("selBookAudio").value; if(!book)return;
+  const d=await api("/api/books/"+encodeURIComponent(book)+"/chapters");
+  const box=$("selChaptersAudio");
+  box.innerHTML=d.chapters.map(function(c){
+    return '<label class="chip"><input type="checkbox" value="'+c+'" onchange="onChapterToggleAudio()"> Cap '+c+'</label>';
+  }).join("");
+}
+function selectAllChapters(on){
+  const boxes=document.querySelectorAll("#selChaptersAudio input[type=checkbox]");
+  boxes.forEach(function(b){ b.checked=on; });
+  onChapterToggleAudio();
+}
+function onChapterToggleAudio(){
+  const book=$("selBookAudio").value;
+  const checks=[...document.querySelectorAll("#selChaptersAudio input:checked")].map(function(i){return +i.value;}).sort(function(a,b){return a-b;});
+  if(!checks.length){audioQueue=[];audioBook=null;audioChapter=null;audioVerses=[];audioIdx=0;
+    $("audioStatus").textContent="Elige uno o varios capitulos.";return;}
+  $("audioStatus").textContent="Cargando "+checks.length+" capitulo(s) de "+book+"...";
+  // Cargar en paralelo los versiculos de cada capitulo seleccionado
+  Promise.all(checks.map(function(c){
+    return api("/api/books/"+encodeURIComponent(book)+"/"+c).then(function(d){return {book:book,chapter:c,verses:d.verses};});
+  })).then(function(list){
+    audioQueue=list; audioQueuePos=0;
+    const total=list.reduce(function(s,x){return s+x.verses.length;},0);
+    $("audioStatus").textContent="Listo: "+checks.length+" capitulo(s), "+total+" versiculos. Pulsa Escuchar.";
+  }).catch(function(){ $("audioStatus").textContent="Error al cargar capitulos."; });
+}
+async function loadChapterAudio(){} // no usado con multi-capitulo
+function pickSpanishVoice(){
+  if(!("speechSynthesis" in window)) return null;
+  const vs=window.speechSynthesis.getVoices();
+  if(!vs.length) return null;
+  // Voces en espanol
+  const es=vs.filter(function(v){return /^es/i.test(v.lang)||/spanish/i.test(v.name);});
+  const pool=es.length?es:vs;
+  // Preferir voces masculinas (evitar las marcadas como Female/Mujer)
+  const male=pool.filter(function(v){return !/female|mujer|woman/i.test(v.name);});
+  const list=male.length?male:pool;
+  // Si el usuario eligio una voz especifica en el selector, usarla
+  const sel=document.getElementById("ttsVoice");
+  if(sel && sel.value){
+    const chosen=vs.find(function(v){return v.voiceURI===sel.value || v.name===sel.value;});
+    if(chosen) return chosen;
+  }
+  // Preferencias de nombre que suelen ser masculinas y grabes
+  return list.find(function(v){return /male|hombre|google español|españa|diego|miguel|pablo/i.test(v.name);})
+    || list.find(function(v){return /es[-_](ES|MX|AR|CO|CL|PE)/i.test(v.lang);})
+    || list[0] || null;
+}
+function populateVoices(){
+  if(!("speechSynthesis" in window)) return;
+  const sel=$("ttsVoice");
+  const vs=window.speechSynthesis.getVoices();
+  if(!vs.length) return;
+  const es=vs.filter(function(v){return /^es/i.test(v.lang)||/spanish/i.test(v.name);});
+  const pool=es.length?es:vs;
+  sel.innerHTML='<option value="">Masculina gruesa (por defecto)</option>'+
+    pool.map(function(v){return '<option value="'+v.voiceURI+'">'+v.name+' ('+v.lang+')</option>';}).join("");
+}
+function speakFrom(idx){
+  if(!("speechSynthesis" in window)){$("audioStatus").textContent="Tu navegador no soporta lectura por voz.";return;}
+  // Avanzar de capitulo en la cola si hace falta
+  while(audioQueuePos<audioQueue.length){
+    const item=audioQueue[audioQueuePos];
+    if(idx<item.verses.length){
+      audioBook=item.book; audioChapter=item.chapter; audioVerses=item.verses;
+      audioIdx=idx;
+      if(audioQueuePos===0 && idx===0 || !audioVoice){ audioVoice=pickSpanishVoice(); }
+      const v=audioVerses[idx];
+      const u=new SpeechSynthesisUtterance(audioBook+" "+audioChapter+", versículo "+v.verse+". "+v.text);
+      if(audioVoice)u.voice=audioVoice;
+      u.lang=audioVoice?audioVoice.lang:"es-ES";
+      u.rate=parseFloat($("ttsRate").value)||1;
+      u.pitch=0.6;
+      const curChapter=audioQueuePos, curIdx=idx;
+      u.onend=function(){ if(audioPlaying){
+        if(curIdx+1<audioQueue[curChapter].verses.length){ speakFrom(curIdx+1); }
+        else { audioQueuePos++; speakFrom(0); }
+      } };
+      audioUtter=u;
+      window.speechSynthesis.speak(u);
+      const totalChaps=audioQueue.length;
+      $("audioStatus").textContent="Leyendo "+audioBook+" "+audioChapter+":1 ("+(audioQueuePos+1)+"/"+totalChaps+" capitulos)";
+      return;
+    }
+    audioQueuePos++; idx=0;
+  }
+  // Fin de toda la cola
+  audioPlaying=false;$("btnPlayPause").textContent="▶ Escuchar seleccion";
+  $("audioStatus").textContent="Fin de la seleccion ("+audioQueue.length+" capitulos).";
+  reportAudioProgress();
+}
+function reportAudioProgress(){
+  if(!USER||!audioQueue.length)return;
+  const chapters=audioQueue.map(function(c){return {book:c.book,chapter:c.chapter};});
+  api("/api/progress/audio?email="+encodeURIComponent(USER.email),
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chapters:chapters})})
+    .then(function(d){ if(d&&d.added>0){ USER.points=d.points;USER.level=d.level;USER.streak=d.streak;saveUser(USER);refreshMe(); } })
+    .catch(function(e){ console.warn("audio progress",e); });
+}
+function toggleAudio(){
+  if(!("speechSynthesis" in window)){$("audioStatus").textContent="Tu navegador no soporta lectura por voz.";return;}
+  if(audioPlaying){
+    window.speechSynthesis.pause();
+    audioPlaying=false;$("btnPlayPause").textContent="▶ Continuar";
+  } else {
+    window.speechSynthesis.resume();
+    if(window.speechSynthesis.speaking && !window.speechSynthesis.paused){return;}
+    audioPlaying=true;$("btnPlayPause").textContent="⏸ Pausar";
+    if(!audioQueue.length){$("audioStatus").textContent="Elige uno o varios capitulos primero.";return;}
+    if(audioQueuePos>=audioQueue.length)audioQueuePos=0;
+    speakFrom(audioIdx);
+  }
+}
+function stopAudio(){
+  if("speechSynthesis" in window)window.speechSynthesis.cancel();
+  audioPlaying=false;audioIdx=0;audioQueuePos=0;audioVoice=null;$("btnPlayPause").textContent="▶ Escuchar seleccion";
+  $("audioStatus").textContent=audioQueue.length?("Detenido. "+audioQueue.length+" capitulos en cola."):"Detenido.";
+  reportAudioProgress();
+}
+async function markCurrentRead(){
+  if(!USER){alert("Inicia sesion primero (Perfil).");return;}
+  const book=$("selBook").value,chap=$("selChapter").value;
+  const d=await api("/api/progress/read?email="+encodeURIComponent(USER.email),
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({book:book,chapter:+chap})});
+  USER.points=d.points;USER.level=d.level;USER.streak=d.streak;saveUser(USER);refreshMe();
+  alert("Capitulo leido. +5 pts. Racha: "+d.streak+" dias. Nivel "+d.level);
+}
+let timer;
+function debounceSearch(){clearTimeout(timer);timer=setTimeout(doSearch,350);}
+async function doSearch(){
+  const q=$("searchInput").value.trim(); const box=$("searchResults");
+  if(!q){box.innerHTML="<div class=\"empty\">Escribe para buscar.</div>";return;}
+  box.innerHTML="<div class=\"empty\">Buscando</div>";
+  const d=await api("/api/search?q="+encodeURIComponent(q));
+  if(!d.results.length){box.innerHTML="<div class=\"empty\">Sin coincidencias.</div>";return;}
+  box.innerHTML=d.results.map(function(x){return "<div class=\"result\"><div class=\"ref\">"+x.book+" "+x.chapter+":"+x.verse+"</div><div>"+x.text+"</div></div>";}).join("");
+}
+async function renderProgress(){
+  if(!USER){$("progressBox").innerHTML="<div class=\"empty\">Inicia sesion para ver tu progreso.</div>";return;}
+  const p=await api("/api/progress?email="+encodeURIComponent(USER.email));
+  const booksDone=p.per_book.filter(function(b){return b.done===b.total && b.total>0;}).length;
+  let html="";
+  // Barra de progreso global
+  html+="<div class=\"stat\"><span>Progreso de la Biblia</span><b>"+p.percent+"%</b></div>";
+  html+="<div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:"+p.percent+"%\"></div></div>";
+  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Capitulos</span><b>"+p.read_count+" / "+p.total_chapters+"</b></div>"+
+        "<div class=\"stat\"><span>Libros completos</span><b>"+booksDone+" / "+p.per_book.length+"</b></div></div>";
+  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Puntos</span><b>"+p.points+"</b></div>"+
+        "<div class=\"stat\"><span>Nivel</span><b>"+p.level+"</b></div>"+
+        "<div class=\"stat\"><span>Racha</span><b>"+p.streak+" dias</b></div></div>";
+  // Barra por libro
+  html+="<h4 style=\"margin:12px 0 6px;font-size:.9rem\">Por libro</h4><div class=\"book-bars\">";
+  html+=p.per_book.map(function(b){
+    const pct=b.total?Math.round(100*b.done/b.total):0;
+    return "<div class=\"book-bar\"><span class=\"bb-name\">"+b.book+"</span>"+
+      "<div class=\"bb-track\"><div class=\"bb-fill\" style=\"width:"+pct+"%\"></div></div>"+
+      "<span class=\"bb-num\">"+b.done+"/"+b.total+"</span></div>";
+  }).join("");
+  html+="</div>";
+  // Aviso de racha perdida
+  if(p.streak_lost){
+    html+="<div class=\"alert-warn\">Perdiste la racha. ¡Empieza de nuevo hoy!</div>";
+  }
+  // Lista de capitulos leidos (primeros 20)
+  html+="<p class=\"breadcrumb\">Leidos: "+(p.read.slice(0,20).map(function(r){return "<span class=\"badge pill-read\">"+r+"</span>";}).join("")||"ninguno")+"</p>";
+  $("progressBox").innerHTML=html;
+}
+async function renderAdmin(){
+  if(!USER||!USER.is_admin){$("adminStats").innerHTML="<div class=\"empty\">Solo admin. Usa la clave al crear cursos.</div>";}
+  const s=await api("/api/stats");
+  $("adminStats").innerHTML="<div class=\"stat\"><span>Usuarios</span><b>"+s.usuarios+"</b></div><div class=\"stat\"><span>Publicaciones</span><b>"+s.publicaciones+"</b></div><div class=\"stat\"><span>Capitulos leidos</span><b>"+s.capitulos_leidos+"</b></div>";
+}
+async function chatNvidiaDirect(q){
+  const system=("Sos un asistente biblico cristiano de la app 'Biblia AI'. "+
+    "Responde con amor, claridad y basandote en la Biblia. "+
+    "Si citas versiculos, indica libro, capitulo y versiculo.");
+  const payload={model:"z-ai/glm-5.2",messages:[
+    {role:"system",content:system},
+    {role:"user",content:q}
+  ],temperature:0.6,max_tokens:4000};
+  const resp=await fetch("https://integrate.api.nvidia.com/v1/chat/completions",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+window.NVIDIA_API_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify(payload)
+  });
+  if(!resp.ok){ const t=await resp.text(); throw new Error("NVIDIA "+resp.status+": "+t.slice(0,200)); }
+  const j=await resp.json();
+  const ans=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||"";
+  return {answer:ans,enabled:true,direct:true};
+}
+async function chatSend(){
+  const box=$("chatlog"); const inp=$("chatInput"); const q=inp.value.trim();
+  if(!q)return;
+  window.lastChatQuestion=q;
+  box.insertAdjacentHTML("beforeend","<div class=\"bubble user\"><div class=\"who\">Tu</div>"+q.replace(/</g,"<")+"</div>");
+  inp.value="";
+  const loading=document.createElement("div"); loading.className="bubble ai"; loading.textContent="Pensando"; box.appendChild(loading);
+  box.scrollTop=box.scrollHeight;
+  let data;
+  try{
+    if(window.NVIDIA_API_KEY && window.NVIDIA_API_KEY.length>10){
+      // Modo independiente: llamar a NVIDIA NIM directo desde el dispositivo
+      data = await chatNvidiaDirect(q);
+    } else {
+      data = await api("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({q:q})});
+    }
+  }
+  catch(e){ data={answer:"Error de conexion: "+(errMsg(e)||e),enabled:true}; }
+  box.removeChild(loading);
+  const ans=(data&&data.answer)||"Sin respuesta.";
+  const noteId="cn_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+  box.insertAdjacentHTML("beforeend","<div class=\"bubble ai\" id=\""+noteId+"\"><div class=\"who\">IA Biblica</div>"+wrapShortAnswer(renderMarkdown(ans))+"<button class=\"note-btn\" onclick=\"saveChatNote(this,'"+noteId+"')\">Guardar como nota</button></div>");
+  box.scrollTop=box.scrollHeight;
+}
+async function saveChatNote(btn,noteId){
+  if(!USER){alert("Inicia sesion para guardar notas.");return;}
+  const bubble=document.getElementById(noteId);
+  if(!bubble)return;
+  // Intentar obtener el texto original del atributo data-raw; si no existe, usar innerText
+  var mdBody=bubble.querySelector(".md-body");
+  var text="";
+  if(mdBody&&mdBody.getAttribute("data-raw")){text=mdBody.getAttribute("data-raw");}
+  else{text=(bubble.innerText||bubble.textContent||"").trim();}
+  if(!text)return;
+  const title="Nota chat "+new Date().toLocaleString("es-PY");
+  const question=(window.lastChatQuestion||"").trim();
+  btn.disabled=true; btn.textContent="Guardando";
+  try{
+    const d=await api("/api/notes?email="+encodeURIComponent(USER.email),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:title,question:question,text:text})});
+    btn.textContent="Guardada"; btn.style.background="rgba(76,175,80,.25)";
+  }catch(e){
+    btn.textContent="Reintentar"; btn.disabled=false;
+    alert(errMsg(e)||"No se pudo guardar la nota.");
+  }
+}
+async function renderNotesListAlt(){
+  const box=$("notesListAlt"); if(!USER){box.innerHTML="<div class=\"empty\">Inicia sesion para ver tus notas.</div>";return;}
+  const d=await api("/api/notes?email="+encodeURIComponent(USER.email));
+  box.innerHTML=d.notes.length?d.notes.map(function(n){
+    var q=n.question?('<div class="note-question">💬 '+(n.question||"").replace(/</g,"<")+'</div>'):'';
+    return "<div class=\"post note-md\">"+q+"<div class=\"note-title\">"+(n.title||"Nota")+"</div>"+renderMarkdown(n.text)+"<div class=\"when\">"+n.created_at+"</div></div>";
+  }).join(""):"<div class=\"empty\">No hay notas todavia.</div>";
+}
+async function renderNotesList(){
+  const box=$("notesList"); if(!USER){box.innerHTML="<div class=\"empty\">Inicia sesion para ver tus notas.</div>";return;}
+  const d=await api("/api/notes?email="+encodeURIComponent(USER.email));
+  box.innerHTML=d.notes.length?d.notes.map(function(n){
+    var q=n.question?('<div class="note-question">💬 '+(n.question||"").replace(/</g,"<")+'</div>'):'';
+    return "<div class=\"post note-md\">"+q+"<div class=\"note-title\">"+(n.title||"Nota")+"</div>"+renderMarkdown(n.text)+"<div class=\"when\">"+n.created_at+"</div></div>";
+  }).join(""):"<div class=\"empty\">No hay notas todavia.</div>";
+}
+function renderMe(){
+  if(USER){renderProfile();renderNotesList();return;}
+  $("authBox").innerHTML="<h3>Iniciar sesion / Registrarse</h3><input id=\"aName\" placeholder=\"Nombre\"><input id=\"aEmail\" placeholder=\"Email\"><input id=\"aPass\" placeholder=\"Contrasena\" type=\"password\"><button onclick=\"doLogin()\">Entrar</button><button onclick=\"doRegister()\" style=\"background:#3949ab\">Registrarme</button>";
+  $("profileBox").classList.add("hidden");
+  $("notesBox").classList.add("hidden");
+}
+async function doLogin(){
+  const d=await api("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("aEmail").value,password:$("aPass").value})}).catch(function(e){alert(errMsg(e)||"Error");return;});
+  if(d&&d.email){USER=d;saveUser(d);refreshMe();renderProfile();renderNotesList();}
+}
+async function doRegister(){
+  const d=await api("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:$("aName").value,email:$("aEmail").value,password:$("aPass").value})}).catch(function(e){alert(errMsg(e)||"Error");return;});
+  if(d&&d.email){alert("Registrado. Ahora inicia sesion.");}
+}
+function renderProfile(){
+  $("authBox").classList.add("hidden");$("profileBox").classList.remove("hidden");
+  $("profileBox").innerHTML="<h3>"+USER.name+"</h3><div class=\"stat\"><span>Email</span><b>"+USER.email+"</b></div><div class=\"stat\"><span>Puntos</span><b>"+USER.points+"</b></div><div class=\"stat\"><span>Nivel</span><b>"+USER.level+"</b></div><div class=\"stat\"><span>Racha</span><b>"+USER.streak+" dias</b></div><button onclick=\"logout()\" style=\"background:#c62828;margin-top:10px\">Cerrar sesion</button>";
+}
+function logout(){USER=null;saveUser(null);refreshMe();renderMe();}
+init();
+</script>
+</body>
+</html>
