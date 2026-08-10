@@ -1,5 +1,5 @@
 const CACHE = "biblia-ai-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
+const SHELL = ["./", "manifest.webmanifest", "icon-192.png", "icon-512.png", "nvidia_config.js", "sw.js"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
