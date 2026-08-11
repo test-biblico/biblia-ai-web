@@ -16,6 +16,10 @@
 <script src="nvidia_config.js"></script>
 <script>
   if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(e){console.warn("sw",e);});});}
+  let deferredInstall=null;
+  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredInstall=e;$("installBtn")&&$("installBtn").classList.remove("hidden");});
+  window.addEventListener("appinstalled",function(){deferredInstall=null;$("installBtn")&&$("installBtn").classList.add("hidden");});
+  function doInstall(){ if(deferredInstall){deferredInstall.prompt();deferredInstall.userChoice.then(function(){});} else { alert("Tu navegador no ofrece instalacion automatica. Usa el menu (⋮) -> Anadir a pantalla de inicio."); } }
 </script>
 <style>
   :root{--bg:#0f1226;--card:#1a1f3d;--txt:#eef;--muted:#9aa3c7;--accent:#5c6bc0;--border:#2a3160;--ok:#4caf50}
@@ -23,6 +27,8 @@
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6;padding-bottom:70px}
   header{position:sticky;top:0;background:linear-gradient(135deg,#1a237e,#3949ab);padding:12px 14px;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,.4)}
   header h1{font-size:1.1rem;display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .install-btn{font-size:.72rem;background:#ffb300;color:#1a237e;border:none;padding:5px 10px;border-radius:8px;font-weight:700;cursor:pointer}
+  .install-btn.hidden{display:none}
   .me{font-size:.75rem;color:#dfe;background:rgba(255,255,255,.12);padding:4px 8px;border-radius:8px}
   .tabs{display:flex;gap:4px;margin-top:8px;overflow-x:auto}
   .tab{flex:0 0 auto;text-align:center;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.08);font-size:.78rem;cursor:pointer;white-space:nowrap}
@@ -101,10 +107,10 @@
 </head>
 <body>
 <header>
-  <h1>Biblia AI <span class="me" id="meBox">Invitado</span></h1>
+  <h1>Biblia AI <button id="installBtn" class="install-btn hidden" onclick="doInstall()">Instalar app</button></h1>
+  <div class="me" id="meBox">Invitado</div>
   <div class="tabs">
     <div class="tab active" data-tab="read">Leer</div>
-    <div class="tab" data-tab="audio">Audio</div>
     <div class="tab" data-tab="search">Buscar</div>
     <div class="tab" data-tab="progress">Progreso</div>
     <div class="tab" data-tab="chat">Chat</div>
@@ -169,8 +175,8 @@
     </div>
     <div class="row" style="align-items:center;margin-bottom:10px">
       <label style="font-size:.8rem;color:var(--muted)">Voz</label>
-      <select id="ttsVoice" style="margin-bottom:0">
-        <option value="">Masculina gruesa (por defecto)</option>
+      <select id="ttsVoice" onchange="applyVoice()" style="margin-bottom:0">
+        <option value="">Voz por defecto del sistema</option>
       </select>
     </div>
     <button id="btnPlayPause" onclick="toggleAudio()">▶ Escuchar seleccion</button>
@@ -373,6 +379,9 @@ function pickSpanishVoice(){
   if(!("speechSynthesis" in window)) return null;
   const vs=window.speechSynthesis.getVoices();
   if(!vs.length) return null;
+  // Si el usuario eligio una voz guardada, usarla
+  const saved=localStorage.getItem("biblia_voz");
+  if(saved){ const v=vs.find(function(x){return x.voiceURI===saved;}); if(v) return v; }
   // Voces en espanol
   const es=vs.filter(function(v){return /^es/i.test(v.lang)||/spanish/i.test(v.name);});
   const pool=es.length?es:vs;
@@ -395,10 +404,17 @@ function populateVoices(){
   const sel=$("ttsVoice");
   const vs=window.speechSynthesis.getVoices();
   if(!vs.length) return;
-  const es=vs.filter(function(v){return /^es/i.test(v.lang)||/spanish/i.test(v.name);});
-  const pool=es.length?es:vs;
-  sel.innerHTML='<option value="">Masculina gruesa (por defecto)</option>'+
-    pool.map(function(v){return '<option value="'+v.voiceURI+'">'+v.name+' ('+v.lang+')</option>';}).join("");
+  // Mostrar TODAS las voces (para que veas Loquendo u otros motores instalados)
+  sel.innerHTML='<option value="">Voz por defecto del sistema</option>'+
+    vs.map(function(v){return '<option value="'+v.voiceURI+'">'+v.name+' ('+v.lang+')</option>';}).join("");
+  const saved=localStorage.getItem("biblia_voz");
+  if(saved) sel.value=saved;
+}
+function applyVoice(){
+  const uri=$("ttsVoice").value;
+  localStorage.setItem("biblia_voz", uri);
+  const vs=window.speechSynthesis.getVoices();
+  audioVoice=uri?vs.find(function(v){return v.voiceURI===uri;})||null:null;
 }
 function speakFrom(idx){
   if(!("speechSynthesis" in window)){$("audioStatus").textContent="Tu navegador no soporta lectura por voz.";return;}
@@ -566,12 +582,20 @@ async function chatNvidiaDirect(q){
     {role:"system",content:system},
     {role:"user",content:q}
   ],temperature:0.6,max_tokens:4000};
-  const resp=await fetch("https://integrate.api.nvidia.com/v1/chat/completions",{
-    method:"POST",
-    headers:{"Authorization":"Bearer "+window.NVIDIA_API_KEY,"Content-Type":"application/json"},
-    body:JSON.stringify(payload)
-  });
-  if(!resp.ok){ const t=await resp.text(); throw new Error("NVIDIA "+resp.status+": "+t.slice(0,200)); }
+  // Proxy en Cloudflare Workers (evita CORS en el telefono). La clave vive en el Worker, no en el cliente.
+  const PROXY="https://biblia-ai-proxy.peter.workers.dev/chat";
+  const target = (window.NVIDIA_API_KEY && window.NVIDIA_API_KEY.length>10) ? "https://integrate.api.nvidia.com/v1/chat/completions" : null;
+  let url, headers;
+  if(PROXY && PROXY.indexOf("workers.dev")>=0){
+    // usar proxy (la clave se inyecta en el Worker)
+    url=PROXY; headers={"Content-Type":"application/json"};
+  } else if(target){
+    url=target; headers={"Authorization":"Bearer "+window.NVIDIA_API_KEY,"Content-Type":"application/json"};
+  } else {
+    throw new Error("Chat no disponible (sin clave ni proxy).");
+  }
+  const resp=await fetch(url,{method:"POST",headers:headers,body:JSON.stringify(payload)});
+  if(!resp.ok){ const t=await resp.text(); throw new Error("Chat "+resp.status+": "+t.slice(0,200)); }
   const j=await resp.json();
   const ans=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||"";
   return {answer:ans,enabled:true,direct:true};
