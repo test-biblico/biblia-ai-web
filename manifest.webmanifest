@@ -1,7 +1,6 @@
 {
   "name": "Biblia AI",
   "short_name": "Biblia AI",
-  "id": "/",
   "description": "Lectura de la Biblia Reina Valera 1960, búsqueda y chat bíblico con IA.",
   "start_url": "/biblia-ai-web/",
   "scope": "/biblia-ai-web/",
