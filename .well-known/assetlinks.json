@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.test_biblico.twa",
+        "sha256_cert_fingerprints": ["B9:D3:DD:A9:D1:D2:51:15:B1:98:F4:27:FD:CB:62:1B:AE:02:2E:0B:D7:76:C5:F4:E9:70:0C:AE:A3:6D:CE:4A"]
+      }
+    }]
