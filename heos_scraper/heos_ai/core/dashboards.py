@@ -1,7 +1,12 @@
 """Genera el DASHBOARD FINAL CEO y dashboards por área en HTML (Cap 7 y Doc 007)."""
 import datetime as _dt
+import os
 from core import orchestrator
 from db.database import q
+
+# Ubicacion de entrega por defecto: Escritorio del usuario
+DESKTOP = os.path.join(os.path.expanduser("~"), "Desktop")
+DASHBOARD_PATH = os.path.join(DESKTOP, "HEOS_COMMAND_CENTER.html")
 
 
 def _gs(n):
@@ -167,7 +172,7 @@ header .sub{{color:#7fd1c4;font-size:13px}}
 
 def save_dashboard(path=None):
     if path is None:
-        path = __import__("os").path.join(__import__("os").path.dirname(__file__), "..", "dashboard.html")
+        path = DASHBOARD_PATH
     html = render_html()
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)

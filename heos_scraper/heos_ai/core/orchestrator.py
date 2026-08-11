@@ -179,11 +179,78 @@ def _fmt(n):
 
 def autoevaluacion():
     """Cap 2.9 — autoevaluación diaria del CEO AI."""
-    recs = q("SELECT COUNT(*) AS n FROM recomendaciones WHERE estado='Pendiente'")["n"]
-    alertas = q("SELECT COUNT(*) AS n FROM alertas WHERE estado='Activa'")["n"]
+    recs = q1("SELECT COUNT(*) AS n FROM recomendaciones WHERE estado='Pendiente'")["n"]
+    alertas = q1("SELECT COUNT(*) AS n FROM alertas WHERE estado='Activa'")["n"]
     return {
         "decisiones_acertadas": "Por validar con resultados reales",
         "recomendaciones_pendientes": recs,
         "alertas_activas": alertas,
         "mejora_continua": "Memoria de aprendizaje actualizada tras cada ciclo.",
     }
+
+
+# ============================================================
+# ECOSISTEMA COMPLETO: 60 AGENTES + 250+ SUBAGENTES (Doc 001)
+# ============================================================
+def _todas_clases_agentes():
+    """Recolecta las 60 clases de agentes desde los modulos agents_*."""
+    import importlib, pkgutil, inspect
+    from core import agents_ops, agents_mnt_fin, agents_com_pr
+    clases = []
+    for mod in (agents_ops, agents_mnt_fin, agents_com_pr):
+        for nombre, obj in inspect.getmembers(mod, inspect.isclass):
+            if obj.__module__ == mod.__name__ and issubclass(obj, object) \
+               and nombre.startswith("Agente") and hasattr(obj, "run"):
+                clases.append(obj)
+    # dedupe por nombre
+    vistos = set()
+    out = []
+    for c in clases:
+        if c.__name__ not in vistos:
+            vistos.add(c.__name__)
+            out.append(c)
+    return out
+
+
+def ejecutar_ecosistema():
+    """Ejecuta los 60 agentes y los 250+ subagentes; consolida alertas/recs.
+    Devuelve dict con conteos y resultados."""
+    agentes = _todas_clases_agentes()
+    resultados_agentes = []
+    alertas = []
+    recs = []
+    for cls in agentes:
+        try:
+            inst = cls()
+            r = inst.run()
+            resultados_agentes.append(r)
+            alertas += [(a[0], a[1], a[2], a[3], a[4]) for a in r.get("alertas", [])]
+            recs += r.get("recomendaciones", [])
+        except Exception as e:
+            resultados_agentes.append({"codigo": getattr(cls, "codigo", "?"),
+                                       "nombre": cls.__name__, "error": str(e)})
+
+    from core import subagents
+    insts_sub = subagents.instancias_subagentes()
+    resultados_sub = []
+    for s in insts_sub:
+        try:
+            resultados_sub.append(s.run())
+        except Exception as e:
+            resultados_sub.append({"codigo": s.codigo, "error": str(e)})
+
+    return {
+        "agentes_total": len(agentes),
+        "subagentes_total": len(insts_sub),
+        "agentes": resultados_agentes,
+        "subagentes": resultados_sub,
+        "alertas": alertas,
+        "recomendaciones": recs,
+    }
+
+
+def resumen_ecosistema():
+    eco = ejecutar_ecosistema()
+    return (f"ECOSISTEMA HEOS-AI: {eco['agentes_total']} agentes especializados + "
+            f"{eco['subagentes_total']} subagentes activos.")
+
