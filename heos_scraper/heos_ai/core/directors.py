@@ -183,7 +183,7 @@ def director_comercial():
 
     alertas = []
     recomendaciones = []
-    maquinas_libres = q("SELECT COUNT(*) AS n FROM flota WHERE estado='Disponible'")["n"] if q("SELECT COUNT(*) AS n FROM flota WHERE estado='Disponible'") else 0
+    maquinas_libres = q1("SELECT COUNT(*) AS n FROM flota WHERE estado='Disponible'")["n"]
     if maquinas_libres > 0:
         alertas.append(("Medio", "Comercial",
                          f"{maquinas_libres} máquina(s) disponible(s) sin contrato",
@@ -253,8 +253,8 @@ def director_compras():
 def director_inventario():
     # Sin tabla de inventario detallada en la base mínima; reporta disponibilidad de flota
     # como proxy de disponibilidad de activos.
-    disp = q("SELECT COUNT(*) AS n FROM flota WHERE estado='Disponible'")["n"]
-    total = q("SELECT COUNT(*) AS n FROM flota")["n"]
+    disp = q1("SELECT COUNT(*) AS n FROM flota WHERE estado='Disponible'")["n"]
+    total = q1("SELECT COUNT(*) AS n FROM flota")["n"]
     return {
         "nombre": "Director Inventario IA",
         "codigo": "HEOS-INV-01",
@@ -269,8 +269,8 @@ def director_inventario():
 # ============================================================
 def director_rrhh():
     pers = q("SELECT rol, COUNT(*) AS n, AVG(productividad) AS prod FROM personal GROUP BY rol")
-    activos = q("SELECT COUNT(*) AS n FROM personal")["n"]
-    disp = q("SELECT COUNT(*) AS n FROM personal WHERE disponible=1")["n"]
+    activos = q1("SELECT COUNT(*) AS n FROM personal")["n"]
+    disp = q1("SELECT COUNT(*) AS n FROM personal WHERE disponible=1")["n"]
     return {
         "nombre": "Director RRHH IA",
         "codigo": "HEOS-HR-01",
@@ -285,9 +285,8 @@ def director_rrhh():
 # DIRECTOR SEGURIDAD IA  (HEOS-SEC-01)
 # ============================================================
 def director_seguridad():
-    inc = q("SELECT COUNT(*) AS n FROM incidentes WHERE estado='Abierto'")["n"]
-    flota = q("SELECT COUNT(*) AS n FROM flota")
-    total = flota["n"] if flota else 0
+    inc = q1("SELECT COUNT(*) AS n FROM incidentes WHERE estado='Abierto'")["n"]
+    total = q1("SELECT COUNT(*) AS n FROM flota")["n"]
     safety = round(100 * (total - inc) / total, 1) if total else 100
     alertas = []
     if inc:
@@ -313,12 +312,17 @@ def director_bi():
     mnt = director_mantenimiento()
     seg = director_seguridad()
 
-    # IGE compuesto (0-100) ponderado
-    salud_flota = 100 - (ops["kpi"]["fuera_servicio"] / ops["kpi"]["maquinas_totales"] * 100 if ops["kpi"]["maquinas_totales"] else 0)
-    salud_fin = fin["kpi"]["rentabilidad_pct"]
-    salud_mnt = 100 - min(100, mnt["kpi"]["equipos_proximos_servicio"] * 15)
+    # Salud de flota: mezcla disponibilidad y utilización (0-100)
+    tot = ops["kpi"]["maquinas_totales"] or 1
+    disp = 100 - (ops["kpi"]["fuera_servicio"] / tot * 100)
+    util = ops["kpi"]["utilizacion_pct"]
+    salud_flota = round(0.5 * disp + 0.5 * min(100, util / 0.9 * 100), 1)
+    # Rentabilidad mapeada a 0-100 de forma continua (0%=50, 30%+=100, negativo->baja)
+    rp = fin["kpi"]["rentabilidad_pct"]
+    salud_fin = round(max(0, min(100, 50 + rp * 5 / 3)), 1)
+    salud_mnt = round(100 - min(100, mnt["kpi"]["equipos_proximos_servicio"] * 15), 1)
     salud_seg = seg["kpi"]["safety_score"]
-    ige = round(0.30 * salud_flota + 0.30 * max(0, salud_fin) + 0.20 * salud_mnt + 0.20 * salud_seg, 1)
+    ige = round(0.30 * salud_flota + 0.30 * salud_fin + 0.20 * salud_mnt + 0.20 * salud_seg, 1)
 
     return {
         "nombre": "Director Inteligencia Empresarial IA",

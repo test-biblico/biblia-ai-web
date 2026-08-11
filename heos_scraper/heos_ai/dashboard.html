@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEOS COMMAND CENTER — Constructora XYZ</title>
+<style>
+*{box-sizing:border-box;font-family:Segoe UI,system-ui,sans-serif}
+body{margin:0;background:#0f1115;color:#e6e6e6}
+header{padding:18px 24px;background:linear-gradient(90deg,#10312e,#0f1115);border-bottom:1px solid #1c2b29}
+header h1{margin:0;font-size:20px;letter-spacing:1px}
+header .sub{color:#7fd1c4;font-size:13px}
+.wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:20px}
+.card{background:#171b21;border:1px solid #232a32;border-radius:10px;padding:16px}
+.card h3{margin:0 0 10px;font-size:13px;color:#9fb3ae;text-transform:uppercase;letter-spacing:1px}
+.big{font-size:30px;font-weight:700}
+.bar{height:10px;background:#222a31;border-radius:6px;overflow:hidden;margin-top:8px}
+.fill{height:100%;border-radius:6px}
+.kpis{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:#cdd6d3}
+.section{padding:0 20px 24px}
+.section h2{font-size:16px;border-bottom:1px solid #232a32;padding-bottom:8px}
+.al{background:#171b21;border:1px solid #232a32;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px}
+.rec{background:#141a1f;border-left:4px solid #109b8a;padding:10px 12px;margin:10px 0;border-radius:6px}
+.rec-h{font-size:12px;color:#7fd1c4;margin-bottom:4px}
+.rec-prob{font-size:14px}
+.rec-acc{font-size:13px;color:#ffd8a8;margin-top:2px}
+.rec-ben{font-size:12px;color:#a9c0ba;margin-top:2px}
+.muted{color:#8a9691;font-size:12px}
+.igebar{display:flex;align-items:center;gap:12px}
+</style></head>
+<body>
+<header>
+  <h1>HEOS COMMAND CENTER</h1>
+  <div class="sub">Constructora XYZ · 11/08/2026 11:02 · HEOS-AI v1.0</div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h3>Salud General (IGE)</h3>
+    <div class="igebar"><div class="big">0%</div></div>
+    <div class="bar"><div class="fill" style="width:0%;background:#109b8a"></div></div>
+  </div>
+  <div class="card">
+    <h3>Flota</h3>
+    <div class="big">12</div>
+    <div class="kpis">
+      <span>Disponibles: 5</span>
+      <span>Trabajando: 7</span>
+      <span>Taller: 0</span>
+      <span>Utilización: 58.3%</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Finanzas</h3>
+    <div class="big">Gs. 123.000.000</div>
+    <div class="kpis">
+      <span>Rentabilidad: 46.4%</span>
+      <span>Ingresos: Gs. 265.000.000</span>
+      <span>Gastos: Gs. 142.000.000</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Mantenimiento</h3>
+    <div class="big">3</div>
+    <div class="kpis"><span>equipos próximos a servicio</span></div>
+  </div>
+  <div class="card">
+    <h3>Comercial</h3>
+    <div class="big">0</div>
+    <div class="kpis">
+      <span>Clientes: 0</span>
+      <span>Disp. máquinas: 0</span>
+      <span>Top: </span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Personal</h3>
+    <div class="big">0</div>
+    <div class="kpis">
+      <span>Disponibles: 0</span>
+      <span>Prod: 0%</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Seguridad</h3>
+    <div class="big">0%</div>
+    <div class="kpis"><span>Incidentes ab.: 0</span></div>
+  </div>
+  <div class="card">
+    <h3>Alertas</h3>
+    <div class="kpis">
+      <span style="color:#e03131">🔴 3</span>
+      <span style="color:#f08c00">🟠 1</span>
+      <span style="color:#f59f00">🟡 1</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>🔔 Alertas activas</h2>
+  <div class="al" style="border-left:4px solid #e03131"><b style="color:#e03131">Critico</b> · Mantenimiento — MAQ-044 con mantenimiento vencido/próximo (-22 días)<br><span class="muted">Próximo: 2026-07-20</span></div><div class="al" style="border-left:4px solid #e03131"><b style="color:#e03131">Critico</b> · Mantenimiento — MAQ-010 con mantenimiento vencido/próximo (-1 días)<br><span class="muted">Próximo: 2026-08-10</span></div><div class="al" style="border-left:4px solid #e03131"><b style="color:#e03131">Critico</b> · Mantenimiento — MAQ-018 con mantenimiento vencido/próximo (4 días)<br><span class="muted">Próximo: 2026-08-15</span></div><div class="al" style="border-left:4px solid #f08c00"><b style="color:#f08c00">Alto</b> · Financiero — 1 cliente(s) moroso(s)<br><span class="muted">Cobranza retrasada afecta liquidez</span></div><div class="al" style="border-left:4px solid #f59f00"><b style="color:#f59f00">Medio</b> · Operaciones — Utilización de flota baja: 58.3%<br><span class="muted">Menos del 70% requiere acción</span></div><div class="al" style="border-left:4px solid #74b816"><b style="color:#74b816">Bajo</b> · Compras — Combustible representa Gs. 58.000.000 en el mes<br><span class="muted">Revisar política de abastecimiento</span></div>
+</div>
+
+<div class="section">
+  <h2>🧠 Recomendaciones IA del día</h2>
+  
+        <div class="rec">
+          <div class="rec-h">#1 · <b>Critico</b> · Director Mantenimiento IA · 92% conf.</div>
+          <div class="rec-prob">⚠ MAQ-044 cerca de mantenimiento obligatorio</div>
+          <div class="rec-acc">➡ Programar mantenimiento preventivo de MAQ-044 antes de 2026-07-20</div>
+          <div class="rec-ben">Evitar falla correctiva costosa</div>
+        </div>
+        <div class="rec">
+          <div class="rec-h">#2 · <b>Critico</b> · Director Mantenimiento IA · 92% conf.</div>
+          <div class="rec-prob">⚠ MAQ-010 cerca de mantenimiento obligatorio</div>
+          <div class="rec-acc">➡ Programar mantenimiento preventivo de MAQ-010 antes de 2026-08-10</div>
+          <div class="rec-ben">Evitar falla correctiva costosa</div>
+        </div>
+        <div class="rec">
+          <div class="rec-h">#3 · <b>Critico</b> · Director Mantenimiento IA · 92% conf.</div>
+          <div class="rec-prob">⚠ MAQ-018 cerca de mantenimiento obligatorio</div>
+          <div class="rec-acc">➡ Programar mantenimiento preventivo de MAQ-018 antes de 2026-08-15</div>
+          <div class="rec-ben">Evitar falla correctiva costosa</div>
+        </div>
+        <div class="rec">
+          <div class="rec-h">#4 · <b>Alto</b> · Director Financiero IA · 90% conf.</div>
+          <div class="rec-prob">⚠ Cliente moroso retrasa pago</div>
+          <div class="rec-acc">➡ Activar cobranza automática y renegociar plazos a 30 días</div>
+          <div class="rec-ben">Mejorar flujo de caja</div>
+        </div>
+        <div class="rec">
+          <div class="rec-h">#5 · <b>Medio</b> · Director Comercial IA · 85% conf.</div>
+          <div class="rec-prob">⚠ Utilización de flota bajo el objetivo (70%)</div>
+          <div class="rec-acc">➡ Reubicar máquinas disponibles a sucursales con mayor demanda y promocionar alquiler</div>
+          <div class="rec-ben">Subir utilización al objetivo</div>
+        </div>
+        <div class="rec">
+          <div class="rec-h">#6 · <b>Bajo</b> · Director Compras IA · 78% conf.</div>
+          <div class="rec-prob">⚠ Costo de combustible elevado</div>
+          <div class="rec-acc">➡ Renegociar proveedor de combustible y consolidar rutas de traslado</div>
+          <div class="rec-ben">Ahorro estimado Gs. 12 millones/año (ver manual 040)</div>
+        </div>
+</div>
+</body></html>
