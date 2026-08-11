@@ -289,16 +289,11 @@ function showVersePopup(book, chapter, start, end){
   // Cerrar con ESC
   document.addEventListener("keydown",escCloseVerse);
   // Cargar versiculos
-  api("/api/verse?book="+encodeURIComponent(book)+"&chapter="+chapter+"&start="+start+"&end="+end)
-    .then(function(d){
-      var html=d.verses.map(function(v){
-        return '<div class="vm-verse"><span class="vm-num">'+v.verse+'</span><span class="vm-text">'+v.text.replace(/</g,"<")+'</span></div>';
-      }).join("");
-      overlay.querySelector(".vm-body").innerHTML=html;
-    })
-    .catch(function(e){
-      overlay.querySelector(".vm-body").innerHTML='<div class="vm-error">No se pudo cargar la cita.</div>';
-    });
+  const verses=(BIBLE[book]&&BIBLE[book][String(chapter)])||[];
+  const slice=verses.filter(function(v){return v.verse>=start&&v.verse<=end;});
+  overlay.querySelector(".vm-body").innerHTML=slice.map(function(v){
+    return '<div class="vm-verse"><span class="vm-num">'+v.verse+'</span><span class="vm-text">'+v.text.replace(/</g,"<")+'</span></div>';
+  }).join("");
 }
 function escCloseVerse(e){ if(e.key==="Escape") closeVersePopup(); }
 function closeVersePopup(){
@@ -306,9 +301,15 @@ function closeVersePopup(){
   if(overlay) overlay.remove();
   document.removeEventListener("keydown",escCloseVerse);
 }
+let BIBLE=null;
+async function loadBible(){
+  if(BIBLE) return BIBLE;
+  const r=await fetch("bible.json"); BIBLE=await r.json(); return BIBLE;
+}
 async function init(){
   USER=loadUser(); refreshMe();
-  const d=await api("/api/books"); allBooks=d.books;
+  try { await loadBible(); } catch(e){ console.warn("bible.json no cargó", e); }
+  allBooks=BIBLE?Object.keys(BIBLE):[];
   $("selBook").innerHTML="<option value=\"\">Libro</option>"+allBooks.map(function(b){return "<option>"+b+"</option>";}).join("");
   if(allBooks.length){$("selBook").value=allBooks[0];onBookChange();}
   renderCourses();
@@ -316,15 +317,15 @@ async function init(){
 function refreshMe(){$("meBox").textContent=USER?USER.name:"Invitado";}
 async function onBookChange(){
   const book=$("selBook").value; if(!book)return;
-  const d=await api("/api/books/"+encodeURIComponent(book)+"/chapters");
-  $("selChapter").innerHTML=d.chapters.map(function(c){return "<option value=\""+c+"\">Cap "+c+"</option>";}).join("");
-  if(d.chapters.length){$("selChapter").value=d.chapters[0];loadChapter();}
+  const chapters=Object.keys(BIBLE[book]||{}).map(Number).sort(function(a,b){return a-b;});
+  $("selChapter").innerHTML=chapters.map(function(c){return "<option value=\""+c+"\">Cap "+c+"</option>";}).join("");
+  if(chapters.length){$("selChapter").value=chapters[0];loadChapter();}
 }
 async function loadChapter(){
   const book=$("selBook").value,chap=$("selChapter").value; if(!book||!chap)return;
-  const d=await api("/api/books/"+encodeURIComponent(book)+"/"+chap);
+  const verses=(BIBLE[book]&&BIBLE[book][chap])||[];
   $("reader").innerHTML="<div class=\"breadcrumb\">"+book+" "+chap+"</div>"+
-    d.verses.map(function(v){return "<div class=\"verse\"><span class=\"vnum\">"+v.verse+"</span><span class=\"vtext\">"+v.text+"</span></div>";}).join("");
+    verses.map(function(v){return "<div class=\"verse\"><span class=\"vnum\">"+v.verse+"</span><span class=\"vtext\">"+v.text+"</span></div>";}).join("");
 }
 /* === Pestaña Audio: leer capitulo con Web Speech API (gratis, local) === */
 let audioBook=null, audioChapter=null, audioVerses=[], audioIdx=0, audioPlaying=false, audioUtter=null, audioVoice=null, audioQueue=[], audioQueuePos=0;
@@ -340,9 +341,9 @@ async function initAudioTab(){
 }
 async function onBookChangeAudio(){
   const book=$("selBookAudio").value; if(!book)return;
-  const d=await api("/api/books/"+encodeURIComponent(book)+"/chapters");
+  const chapters=Object.keys(BIBLE[book]||{}).map(Number).sort(function(a,b){return a-b;});
   const box=$("selChaptersAudio");
-  box.innerHTML=d.chapters.map(function(c){
+  box.innerHTML=chapters.map(function(c){
     return '<label class="chip"><input type="checkbox" value="'+c+'" onchange="onChapterToggleAudio()"> Cap '+c+'</label>';
   }).join("");
 }
@@ -359,7 +360,8 @@ function onChapterToggleAudio(){
   $("audioStatus").textContent="Cargando "+checks.length+" capitulo(s) de "+book+"...";
   // Cargar en paralelo los versiculos de cada capitulo seleccionado
   Promise.all(checks.map(function(c){
-    return api("/api/books/"+encodeURIComponent(book)+"/"+c).then(function(d){return {book:book,chapter:c,verses:d.verses};});
+    const verses=(BIBLE[book]&&BIBLE[book][c])||[];
+    return Promise.resolve({book:book,chapter:c,verses:verses});
   })).then(function(list){
     audioQueue=list; audioQueuePos=0;
     const total=list.reduce(function(s,x){return s+x.verses.length;},0);
@@ -433,11 +435,22 @@ function speakFrom(idx){
 }
 function reportAudioProgress(){
   if(!USER||!audioQueue.length)return;
-  const chapters=audioQueue.map(function(c){return {book:c.book,chapter:c.chapter};});
-  api("/api/progress/audio?email="+encodeURIComponent(USER.email),
-    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chapters:chapters})})
-    .then(function(d){ if(d&&d.added>0){ USER.points=d.points;USER.level=d.level;USER.streak=d.streak;saveUser(USER);refreshMe(); } })
-    .catch(function(e){ console.warn("audio progress",e); });
+  const p=loadProgress();
+  p.read=p.read||[]; p.per_book=p.per_book||{};
+  let added=0;
+  audioQueue.forEach(function(c){
+    const key=c.book+" "+c.chapter;
+    if(p.read.indexOf(key)<0){ p.read.push(key); added++; }
+    const total=BIBLE[c.book]?Object.keys(BIBLE[c.book]).length:0;
+    const readChaps=p.read.filter(function(k){return k.indexOf(c.book+" ")===0;}).length;
+    p.per_book[c.book]={done:readChaps,total:total};
+  });
+  if(added>0){
+    p.points=(p.points||0)+added*5;
+    p.streak=(p.streak||0)+1;
+    saveProgress(p);
+    renderProgress();
+  }
 }
 function toggleAudio(){
   if(!("speechSynthesis" in window)){$("audioStatus").textContent="Tu navegador no soporta lectura por voz.";return;}
@@ -462,10 +475,18 @@ function stopAudio(){
 async function markCurrentRead(){
   if(!USER){alert("Inicia sesion primero (Perfil).");return;}
   const book=$("selBook").value,chap=$("selChapter").value;
-  const d=await api("/api/progress/read?email="+encodeURIComponent(USER.email),
-    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({book:book,chapter:+chap})});
-  USER.points=d.points;USER.level=d.level;USER.streak=d.streak;saveUser(USER);refreshMe();
-  alert("Capitulo leido. +5 pts. Racha: "+d.streak+" dias. Nivel "+d.level);
+  const p=loadProgress();
+  p.read=p.read||[]; p.per_book=p.per_book||{};
+  const key=book+" "+chap;
+  if(p.read.indexOf(key)<0) p.read.push(key);
+  const total=BIBLE[book]?Object.keys(BIBLE[book]).length:0;
+  const readChaps=p.read.filter(function(k){return k.indexOf(book+" ")===0;}).length;
+  p.per_book[book]={done:readChaps,total:total};
+  p.points=(p.points||0)+5;
+  p.streak=(p.streak||0)+1;
+  saveProgress(p);
+  alert("Capitulo leido. +5 pts. Racha: "+p.streak+" dias.");
+  renderProgress();
 }
 let timer;
 function debounceSearch(){clearTimeout(timer);timer=setTimeout(doSearch,350);}
@@ -473,38 +494,63 @@ async function doSearch(){
   const q=$("searchInput").value.trim(); const box=$("searchResults");
   if(!q){box.innerHTML="<div class=\"empty\">Escribe para buscar.</div>";return;}
   box.innerHTML="<div class=\"empty\">Buscando</div>";
-  const d=await api("/api/search?q="+encodeURIComponent(q));
-  if(!d.results.length){box.innerHTML="<div class=\"empty\">Sin coincidencias.</div>";return;}
-  box.innerHTML=d.results.map(function(x){return "<div class=\"result\"><div class=\"ref\">"+x.book+" "+x.chapter+":"+x.verse+"</div><div>"+x.text+"</div></div>";}).join("");
+  const ql=q.toLowerCase(); const results=[];
+  if(BIBLE){
+    for(const book in BIBLE){
+      const chaps=BIBLE[book];
+      for(const ch in chaps){
+        for(const v of chaps[ch]){
+          if(v.text.toLowerCase().indexOf(ql)>=0){
+            results.push({book:book,chapter:ch,verse:v.verse,text:v.text});
+            if(results.length>=50) break;
+          }
+        }
+        if(results.length>=50) break;
+      }
+      if(results.length>=50) break;
+    }
+  }
+  if(!results.length){box.innerHTML="<div class=\"empty\">Sin coincidencias.</div>";return;}
+  box.innerHTML=results.map(function(x){return "<div class=\"result\"><div class=\"ref\">"+x.book+" "+x.chapter+":"+x.verse+"</div><div>"+x.text+"</div></div>";}).join("");
 }
+function progressKey(){ return "biblia_progress_"+(USER?USER.email:"invitado"); }
+function loadProgress(){
+  try{ return JSON.parse(localStorage.getItem(progressKey())||"{}"); }catch(e){ return {}; }
+}
+function saveProgress(p){ localStorage.setItem(progressKey(), JSON.stringify(p)); }
 async function renderProgress(){
-  if(!USER){$("progressBox").innerHTML="<div class=\"empty\">Inicia sesion para ver tu progreso.</div>";return;}
-  const p=await api("/api/progress?email="+encodeURIComponent(USER.email));
-  const booksDone=p.per_book.filter(function(b){return b.done===b.total && b.total>0;}).length;
+  if(!USER){$("progressBox").innerHTML="<div class=\"empty\">Inicia sesion para guardar tu progreso (se guarda en este dispositivo).</div>";return;}
+  const p=loadProgress();
+  const read=p.read||[]; // ["Libro 1:3", ...]
+  const perBook=p.per_book||{}; // {"Libro": {done:5, total:22}}
+  let totalChapters=0, readCount=0, booksDone=0, bookList=[];
+  if(BIBLE){
+    for(const book in BIBLE){
+      const chaps=Object.keys(BIBLE[book]).length;
+      totalChapters+=chaps;
+      const done=perBook[book]?perBook[book].done:0;
+      readCount+=done;
+      if(done>=chaps && chaps>0) booksDone++;
+      bookList.push({book:book, done:done, total:chaps});
+    }
+  }
+  const percent=totalChapters?Math.round(100*readCount/totalChapters):0;
   let html="";
-  // Barra de progreso global
-  html+="<div class=\"stat\"><span>Progreso de la Biblia</span><b>"+p.percent+"%</b></div>";
-  html+="<div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:"+p.percent+"%\"></div></div>";
-  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Capitulos</span><b>"+p.read_count+" / "+p.total_chapters+"</b></div>"+
-        "<div class=\"stat\"><span>Libros completos</span><b>"+booksDone+" / "+p.per_book.length+"</b></div></div>";
-  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Puntos</span><b>"+p.points+"</b></div>"+
-        "<div class=\"stat\"><span>Nivel</span><b>"+p.level+"</b></div>"+
-        "<div class=\"stat\"><span>Racha</span><b>"+p.streak+" dias</b></div></div>";
-  // Barra por libro
+  html+="<div class=\"stat\"><span>Progreso de la Biblia</span><b>"+percent+"%</b></div>";
+  html+="<div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:"+percent+"%\"></div></div>";
+  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Capitulos</span><b>"+readCount+" / "+totalChapters+"</b></div>"+
+        "<div class=\"stat\"><span>Libros completos</span><b>"+booksDone+" / "+bookList.length+"</b></div></div>";
+  html+="<div class=\"stat-row\"><div class=\"stat\"><span>Puntos</span><b>"+(p.points||0)+"</b></div>"+
+        "<div class=\"stat\"><span>Racha</span><b>"+(p.streak||0)+" dias</b></div></div>";
   html+="<h4 style=\"margin:12px 0 6px;font-size:.9rem\">Por libro</h4><div class=\"book-bars\">";
-  html+=p.per_book.map(function(b){
+  html+=bookList.map(function(b){
     const pct=b.total?Math.round(100*b.done/b.total):0;
     return "<div class=\"book-bar\"><span class=\"bb-name\">"+b.book+"</span>"+
       "<div class=\"bb-track\"><div class=\"bb-fill\" style=\"width:"+pct+"%\"></div></div>"+
       "<span class=\"bb-num\">"+b.done+"/"+b.total+"</span></div>";
   }).join("");
   html+="</div>";
-  // Aviso de racha perdida
-  if(p.streak_lost){
-    html+="<div class=\"alert-warn\">Perdiste la racha. ¡Empieza de nuevo hoy!</div>";
-  }
-  // Lista de capitulos leidos (primeros 20)
-  html+="<p class=\"breadcrumb\">Leidos: "+(p.read.slice(0,20).map(function(r){return "<span class=\"badge pill-read\">"+r+"</span>";}).join("")||"ninguno")+"</p>";
+  html+="<p class=\"breadcrumb\">Leidos: "+(read.slice(0,20).map(function(r){return "<span class=\"badge pill-read\">"+r+"</span>";}).join("")||"ninguno")+"</p>";
   $("progressBox").innerHTML=html;
 }
 async function renderAdmin(){
@@ -554,11 +600,13 @@ async function chatSend(){
   box.insertAdjacentHTML("beforeend","<div class=\"bubble ai\" id=\""+noteId+"\"><div class=\"who\">IA Biblica</div>"+wrapShortAnswer(renderMarkdown(ans))+"<button class=\"note-btn\" onclick=\"saveChatNote(this,'"+noteId+"')\">Guardar como nota</button></div>");
   box.scrollTop=box.scrollHeight;
 }
+function notesKey(){ return "biblia_notes_"+(USER?USER.email:"invitado"); }
+function loadNotes(){ try{ return JSON.parse(localStorage.getItem(notesKey())||"[]"); }catch(e){ return []; } }
+function saveNotes(arr){ localStorage.setItem(notesKey(), JSON.stringify(arr)); }
 async function saveChatNote(btn,noteId){
   if(!USER){alert("Inicia sesion para guardar notas.");return;}
   const bubble=document.getElementById(noteId);
   if(!bubble)return;
-  // Intentar obtener el texto original del atributo data-raw; si no existe, usar innerText
   var mdBody=bubble.querySelector(".md-body");
   var text="";
   if(mdBody&&mdBody.getAttribute("data-raw")){text=mdBody.getAttribute("data-raw");}
@@ -567,29 +615,25 @@ async function saveChatNote(btn,noteId){
   const title="Nota chat "+new Date().toLocaleString("es-PY");
   const question=(window.lastChatQuestion||"").trim();
   btn.disabled=true; btn.textContent="Guardando";
-  try{
-    const d=await api("/api/notes?email="+encodeURIComponent(USER.email),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:title,question:question,text:text})});
-    btn.textContent="Guardada"; btn.style.background="rgba(76,175,80,.25)";
-  }catch(e){
-    btn.textContent="Reintentar"; btn.disabled=false;
-    alert(errMsg(e)||"No se pudo guardar la nota.");
-  }
+  const notes=loadNotes();
+  notes.unshift({id:"n_"+Date.now(),title:title,question:question,text:text,created_at:new Date().toLocaleString("es-PY")});
+  saveNotes(notes);
+  btn.textContent="Guardada"; btn.style.background="rgba(76,175,80,.25)";
+}
+function renderNotesInto(box){
+  const notes=loadNotes();
+  box.innerHTML=notes.length?notes.map(function(n){
+    var q=n.question?('<div class="note-question">💬 '+(n.question||"").replace(/</g,"<")+'</div>'):'';
+    return "<div class=\"post note-md\">"+q+"<div class=\"note-title\">"+(n.title||"Nota")+"</div>"+renderMarkdown(n.text)+"<div class=\"when\">"+(n.created_at||"")+"</div></div>";
+  }).join(""):"<div class=\"empty\">No hay notas todavia.</div>";
 }
 async function renderNotesListAlt(){
   const box=$("notesListAlt"); if(!USER){box.innerHTML="<div class=\"empty\">Inicia sesion para ver tus notas.</div>";return;}
-  const d=await api("/api/notes?email="+encodeURIComponent(USER.email));
-  box.innerHTML=d.notes.length?d.notes.map(function(n){
-    var q=n.question?('<div class="note-question">💬 '+(n.question||"").replace(/</g,"<")+'</div>'):'';
-    return "<div class=\"post note-md\">"+q+"<div class=\"note-title\">"+(n.title||"Nota")+"</div>"+renderMarkdown(n.text)+"<div class=\"when\">"+n.created_at+"</div></div>";
-  }).join(""):"<div class=\"empty\">No hay notas todavia.</div>";
+  renderNotesInto(box);
 }
 async function renderNotesList(){
   const box=$("notesList"); if(!USER){box.innerHTML="<div class=\"empty\">Inicia sesion para ver tus notas.</div>";return;}
-  const d=await api("/api/notes?email="+encodeURIComponent(USER.email));
-  box.innerHTML=d.notes.length?d.notes.map(function(n){
-    var q=n.question?('<div class="note-question">💬 '+(n.question||"").replace(/</g,"<")+'</div>'):'';
-    return "<div class=\"post note-md\">"+q+"<div class=\"note-title\">"+(n.title||"Nota")+"</div>"+renderMarkdown(n.text)+"<div class=\"when\">"+n.created_at+"</div></div>";
-  }).join(""):"<div class=\"empty\">No hay notas todavia.</div>";
+  renderNotesInto(box);
 }
 function renderMe(){
   if(USER){renderProfile();renderNotesList();return;}
@@ -598,12 +642,16 @@ function renderMe(){
   $("notesBox").classList.add("hidden");
 }
 async function doLogin(){
-  const d=await api("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("aEmail").value,password:$("aPass").value})}).catch(function(e){alert(errMsg(e)||"Error");return;});
-  if(d&&d.email){USER=d;saveUser(d);refreshMe();renderProfile();renderNotesList();}
+  const email=$("aEmail").value.trim(), pass=$("aPass").value;
+  if(!email){alert("Ingresa tu email.");return;}
+  // Login local (progreso se guarda en este dispositivo)
+  USER={email:email,name:email.split("@")[0],points:0,level:1,streak:0};
+  saveUser(USER);refreshMe();renderProfile();renderNotesList();renderProgress();
 }
 async function doRegister(){
-  const d=await api("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:$("aName").value,email:$("aEmail").value,password:$("aPass").value})}).catch(function(e){alert(errMsg(e)||"Error");return;});
-  if(d&&d.email){alert("Registrado. Ahora inicia sesion.");}
+  const email=$("aEmail").value.trim();
+  if(!email){alert("Ingresa tu email.");return;}
+  alert("Registrado (local). Ahora inicia sesion.");
 }
 function renderProfile(){
   $("authBox").classList.add("hidden");$("profileBox").classList.remove("hidden");
